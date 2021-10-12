@@ -121,6 +121,14 @@ FIELDS = [None,
           "nebenkosten_messgeraet_miete",
           "nebenkosten_messung_abrechnung",
 ]
+SOURCES = ["Sonstige",
+           "Brunata",
+           "Ista",
+           "Techem",
+           "BFW",
+           "Kalo",
+           "Minol"
+]
 
 # if not overriden by --depth, use multi-staged training (n-th epoch, layers):
 STAGES = [(40, 'heads'),
@@ -155,7 +163,12 @@ class CocoConfig(Config):
     STEPS_PER_EPOCH = 1000
 
     # Number of classes (including background)
-    NUM_CLASSES = 36 + 1  # formdata has 36 classes
+    NUM_CLASSES = len(FIELDS) # 36 + 1 # bg is extra
+
+    # Number of classes for a image classification. This is achieved
+    # by an additional head. If the value is zero or None, no separate
+    # head (and outputs) will be added.
+    NUM_IMAGE_CLASSES = len(SOURCES) # 7 # no extra class
 
     # ...settings to reduce GPU memory requirements...
     
@@ -404,8 +417,11 @@ class CocoDataset(utils.Dataset):
         # Add classes
         for i, name in enumerate(FIELDS):
             if name:
-                # use class name as source so we can train on each class dataset
-                # after another while only one class is active at a time
+                # We use the name of each category for its source,
+                # because class/image source is used for masking
+                # (activation) of classes during training and inference,
+                # and our input images can only be marked for one class
+                # at a time, so datasets are in fact distinct for each.
                 self.add_class(name, i, name)
         
     def load_coco(self, dataset_json, dataset_dir='.',
@@ -444,11 +460,15 @@ class CocoDataset(utils.Dataset):
         elif isinstance(limit, (list, np.ndarray)):
             image_ids = np.array(image_ids).take(limit)
 
-        # use first annotated class as source
-        source = coco.loadCats(coco.getCatIds())[-1]['name']
-        print('using class "%s" as source for all images' % source)
+        # use last class as active category (assuming input has only one per dataset);
+        # also, we do use dataset source for images
+        cat = coco.loadCats(coco.getCatIds())[-1]
+        source = cat['name'] # mask-rcnn.utils.Dataset source (i.e. dataset type; used for active RoI class)
+        image_class = cat['source'] # our source (i.e. image type; used for image class)
+        print(f'reading dataset "{image_class}"')
+        print(f'class "{source}" is active in all images')
         # Add images
-        # we cannot keep the image_id refs, because Dataset can load multiple COCO files
+        # (we cannot keep the image_id refs, because Dataset can load multiple COCO files)
         for i, id_ in enumerate(image_ids, len(self.image_info)):
             file_name = coco.imgs[id_]['file_name']
             ann_ids = coco.getAnnIds(
@@ -456,16 +476,23 @@ class CocoDataset(utils.Dataset):
             self.add_image(
                 source, image_id=id_ if return_coco else i,
                 path=os.path.join(dataset_dir, file_name),
+                image_class=image_class,
                 width=coco.imgs[id_]["width"],
                 height=coco.imgs[id_]["height"],
-                # still contains original/COCO image_id refs
-                # and inconsistent/clashing id refs:
+                # anns still contain original/COCO category_id and image_id refs,
+                # (and inconsistent/clashing annotation id refs after 2nd dataset),
+                # but image and ann id don't matter, because anns are stored per image,
+                # and category id is mapped in load_mask
                 annotations=coco.loadAnns(ann_ids))
         if return_coco:
             return coco
         return None
 
-    def load_files(self, filenames, dataset_dir='.', limit=None, source=''):
+    def load_files(self, filenames, dataset_dir='.', limit=None, source='', image_class=''):
+        if image_class not in SOURCES:
+            raise Exception("invalid image_class {}".format(image_class))
+        if source not in FIELDS:
+            raise Exception("invalid source {}".format(source))
         if isinstance(limit, int):
             filenames = filenames[:limit]
         elif isinstance(limit, (list, np.ndarray)):
@@ -480,6 +507,7 @@ class CocoDataset(utils.Dataset):
                 height = image_pil.height
             self.add_image(
                 source, image_id=i, path=filename,
+                image_class=image_class,
                 width=width, height=height)
 
     def image_reference(self, image_id):
@@ -487,6 +515,8 @@ class CocoDataset(utils.Dataset):
 
     def dump_coco(self, dataset_dir='.'):
         """Dump dataset into an COCO JSON file."""
+        # FIXME: revisit what happens during merge with source and image_class
+        # (in original COCO JSON, last category 'source' is image_class and 'name' is source for all images)
         result = { 'categories': self.class_info, 'images': list(), 'annotations': list() }
         i = 0
         for image_id in self.image_ids:
@@ -506,6 +536,22 @@ class CocoDataset(utils.Dataset):
                     result['annotations'].append(ann)
         return result
 
+    def load_image_class(self, image_id):
+        """Load image class for the given image.
+
+        Each full image can have a global class of its own,
+        for image in addition to object classification.
+        Returns:
+        An integer
+        """
+        image_info = self.image_info[image_id]
+        image_class = image_info["image_class"]
+        path = image_info['path']
+        if image_class not in SOURCES:
+            print(f'invalid source "{image_class}" for image {image_id} ("{path}")')
+            return 0
+        return SOURCES.index(image_class)
+
     def load_mask(self, image_id):
         """Load instance masks for the given image.
 
@@ -520,22 +566,22 @@ class CocoDataset(utils.Dataset):
         """
         # If not a COCO image, delegate to parent class.
         image_info = self.image_info[image_id]
-        if image_info["source"] not in self.sources:
-            print('invalid source "%s" for image %d ("%s")' % (
-                image_info['source'], image_id, image_info['path']))
+        source = image_info["source"]
+        image_class = image_info["image_class"]
+        path = image_info['path']
+        annotations = image_info["annotations"]
+        if source not in self.sources:
+            print(f'invalid source "{source}" for image {image_id} ("{path}")')
             return super(CocoDataset, self).load_mask(image_id)
 
         instance_masks = []
         class_ids = []
-        annotations = self.image_info[image_id]["annotations"]
         # Build mask of shape [height, width, instance_count] and list
         # of class IDs that correspond to each channel of the mask.
         for annotation in annotations:
-            class_id = self.map_source_class_id(
-                "{}.{}".format(image_info["source"], annotation['category_id']))
-            if class_id is None:
-                print('invalid category_id %d in source "%s" for image %d ("%s")' % (
-                    annotation['category_id'], image_info["source"], image_id, image_info['path']))
+            class_id = self.map_source_class_id(f'{source}.{annotation["category_id"]}')
+            if not 0 < class_id <= len(FIELDS):
+                print(f'invalid category_id {class_id} in dataset "{image_class}" for image {image_id} ("{path}")')
                 continue
             m = self.annToMask(annotation, image_info["height"], image_info["width"])
             # Some objects are so small that they're less than 1 pixel area
@@ -617,7 +663,14 @@ class CocoDataset(utils.Dataset):
 #  COCO Evaluation
 ############################################################
 
-def build_coco_results(dataset, image_id, image_source, rois, class_ids, scores, masks):
+def max_argmax(array):
+    if not isinstance(array, np.ndarray):
+        return 0, 0
+    idx = np.argmax(array)
+    val = array[idx]
+    return val, idx
+
+def build_coco_results(dataset, source, image_id, rois, class_ids, scores, masks):
     """Arrange results to match COCO specs in http://cocodataset.org/#format
     """
     # If no results, return an empty list
@@ -631,10 +684,9 @@ def build_coco_results(dataset, image_id, image_source, rois, class_ids, scores,
         score = scores[i]
         bbox = np.around(rois[i], 1)
         mask = masks[:, :, i]
-
         result = {
             "image_id": image_id,
-            "category_id": dataset.get_source_class_id(class_id, image_source),
+            "category_id": dataset.get_source_class_id(class_id, source),
             "iscrowd": 0,
             "bbox": [bbox[1], bbox[0], bbox[3] - bbox[1], bbox[2] - bbox[0]],
             "score": score,
@@ -687,20 +739,26 @@ def detect_coco(model, dataset, verbose=False, limit=None, image_ids=None, plot=
         image_path = dataset.image_info[image_id]['path']
         image_cocoid = dataset.image_info[image_id]['id']
         image_source = dataset.image_info[image_id]['source']
+        image_class = dataset.image_info[image_id]['image_class']
         r = preds[i]
         assert image_cocoid == r['image_id'], "Generator queue failed to preserve image order"
+        image_class_name, image_class_conf = max_argmax(r["image_class"])
+        image_class_name = SOURCES[image_class_name]
         if verbose:
-            print("image {} {} has {} rois with {} distinct classes".format(
+            print("image {} ({}) [{}/{}:{:2f}] has {} rois with {} distinct classes".format(
                 image_cocoid, image_path,
+                image_class, image_class_name, image_class_conf,
                 r['masks'].shape[-1], len(np.unique(r['class_ids']))))
 
         # Convert results to COCO format
         # Cast masks to uint8 because COCO tools errors out on bool
-        image_results = build_coco_results(dataset, image_cocoid, image_source,
+        image_results = build_coco_results(dataset, source, image_cocoid,
                                            r["rois"], r["class_ids"],
                                            r["scores"],
                                            r["masks"].astype(np.uint8))
-        dataset.image_info[image_id].update({'annotations': image_results})
+        dataset.image_info[image_id].update({'annotations': image_results,
+                                             'image_class': image_class_name,
+                                             'image_class_conf': imgae_class_conf})
         results.extend(image_results)
         cocoids.append(image_cocoid)
         if plot:
@@ -817,7 +875,10 @@ def showAnns(anns, height, width):
     ax.set_autoscale_on(False)
     polygons = []
     colors = []
+    image_class = None
     for ann in anns:
+        if 'image_class' in ann:
+            image_class = ann['image_class']
         category = ann['category_id']
         color = cm.tab10(category, alpha=0.8)
         if isinstance(ann['segmentation'], list):
@@ -837,6 +898,11 @@ def showAnns(anns, height, width):
         color = cm.tab10(category, alpha=0.5)
         x, y, w, h = ann['bbox']
         ax.add_patch(Rectangle((x, y), w, h, fill=False, color=color))
+    if isinstance(image_class, np.ndarray):
+        image_class_score, image_class_first = max_argmax(image_class)
+        ax.text(0, 0, f'{SOURCES[image_class_first]} ({image_class_score}.2f)',
+                horizontalalignment='left', verticalalignment='bottom',
+                size=11, backgroundcolor='none')
     p = PatchCollection(polygons, facecolor=colors, linewidths=0, alpha=0.4)
     ax.add_collection(p)
     p = PatchCollection(polygons, facecolor='none', edgecolors=colors, linewidths=2)
@@ -945,8 +1011,10 @@ def main():
     predict_parser.add_argument('--plot', required=False, default=None, metavar="SUFFIX",
                                 help='Create plot files from prediction under *.SUFFIX.png')
     test_parser = subparsers.add_parser('test', help="Apply a model on image files without COCO, creating new annotations")
-    test_parser.add_argument('--source', required=True, metavar="CLASS",
-                             help='Name of the unique (active) category all files are marked for')
+    test_parser.add_argument('--active', required=True, metavar="CLASS",
+                             help='Name of the unique active category (RoI class) all files are marked for')
+    test_parser.add_argument('--source', required=True, metavar="NAME",
+                             help='Name of the dataset source (image class) all files are marked for')
     test_parser.add_argument('--dataset-pred', required=True, metavar="PATH/TO/COCO.json",
                              help='File path of the formdata annotations prediction dataset to be written')
     test_parser.add_argument('--plot', required=False, default=None, metavar="SUFFIX",
@@ -997,6 +1065,7 @@ def main():
         print("Plot: ", args.plot)
     if args.command == 'test':
         print("Source: ", args.source)
+        print("Active: ", args.active)
         print("Files: ", len(args.files))
     else:
         print("Dataset: ", args.dataset)
@@ -1045,7 +1114,7 @@ def main():
     # Load weights
     if args.command == 'train':
         if args.exclude in ['final', 'heads']:
-            exclude = ["mrcnn_class_logits", "mrcnn_bbox_fc", "mrcnn_bbox", "mrcnn_mask"]
+            exclude = ["mrcnn_class_logits", "mrcnn_bbox_fc", "mrcnn_bbox", "mrcnn_mask", "image_class"]
         elif args.exclude:
             exclude = args.exclude.split(',')
         else:
@@ -1103,16 +1172,15 @@ def main():
 
             # from MaskRCNN.train:
             def layers(depth, add='conv1'):
-                layer_regex = {
-                    # all layers but the backbone
-                    "heads": r"(mrcnn\_.*)|(rpn\_.*)|(fpn\_.*)",
-                    # From a specific Resnet stage and up
-                    "3+": r"(res3.*)|(bn3.*)|(res4.*)|(bn4.*)|(res5.*)|(bn5.*)|(mrcnn\_.*)|(rpn\_.*)|(fpn\_.*)",
-                    "4+": r"(res4.*)|(bn4.*)|(res5.*)|(bn5.*)|(mrcnn\_.*)|(rpn\_.*)|(fpn\_.*)",
-                    "5+": r"(res5.*)|(bn5.*)|(mrcnn\_.*)|(rpn\_.*)|(fpn\_.*)",
-                    # All layers
-                    "all": ".*",
-                }
+                layer_regex = {}
+                # all layers but the backbone
+                layer_regex["heads"] = r"(mrcnn\_.*)|(rpn\_.*)|(fpn\_.*)|(image\_class)"
+                # From a specific Resnet stage and up
+                layer_regex["5+"]: r"(res5.*)|(bn5.*)|" + layer_regex["heads"]
+                layer_regex["4+"]: r"(res4.*)|(bn4.*)|" + layer_regex["5+"]
+                layer_regex["3+"]: r"(res3.*)|(bn3.*)|" + layer_regex["4+"]
+                # All layers
+                layer_regex["all"]: ".*"
                 if depth in layer_regex.keys():
                     depth = layer_regex[depth]
                 if add:
@@ -1216,7 +1284,7 @@ def main():
     elif args.command == "test":
         # Test dataset (read images from args.files)
         dataset = CocoDataset()
-        dataset.load_files(args.files, limit=args.limit or None, source=args.source)
+        dataset.load_files(args.files, limit=args.limit or None, source=args.active, image_class=args.source)
         dataset.prepare()
         print("Running COCO prediction for class {} on {} images.".format(args.source, dataset.num_images))
         results, _ = detect_coco(model, dataset, verbose=True, plot=args.plot)
