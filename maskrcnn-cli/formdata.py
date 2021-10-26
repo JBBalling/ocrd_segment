@@ -972,8 +972,8 @@ def main():
                         help='Logs and checkpoints directory (default=logs/)')
     parser.add_argument('--limit', required=False, type=int, default=0, metavar="NUM",
                         help='Maximum number of images to use (default=all)')
-    parser.add_argument('--cwd', action='store_true',
-                        help='Interpret all "file_name" paths in COCO relative to the current working directory (instead of the directory of the COCO file). Use with care (and consider chdir), or image paths may not resolve now or next time.')
+    parser.add_argument('-c', '--cwd', action='count',
+                        help='Interpret all "file_name" paths in COCO relative to the current working directory (instead of the directory of the COCO file). Using it multiple times changes it recursive to the parent directory relative to th COCO. Use with care (and consider chdir), or image paths may not resolve now or next time.')
     subparsers = parser.add_subparsers(dest='command')
     train_parser = subparsers.add_parser('train', help="Train a model from images with COCO annotations")
     train_parser.add_argument('--symlink', required=False, metavar="PATH/TO/WEIGHTS.h5",
@@ -1134,6 +1134,13 @@ def main():
         dataset_train = CocoDataset()
         dataset_val = CocoDataset()
         for dataset in args.dataset:
+            if args.cwd == 1:
+                dataset_dir = '.'
+            else:
+                dataset_dir = None
+                for i in range(args.cwd if args.cwd > 1 else 1):
+                    dataset_dir = os.path.dirname(dataset_dir if dataset_dir else dataset)
+
             coco = COCO(dataset)
             np.random.seed(args.seed)
             limit = args.limit
@@ -1143,16 +1150,10 @@ def main():
             trainset = indexes[:int(args.split*limit)]
             valset = indexes[int(args.split*limit):]
             if args.command == "train":
-                dataset_train.load_coco(coco,
-                                        dataset_dir='.' if args.cwd
-                                        else os.path.dirname(dataset),
-                                        limit=trainset)
-            dataset_val.load_coco(coco,
-                                  dataset_dir='.' if args.cwd
-                                  else os.path.dirname(dataset),
-                                  limit=valset)
+                dataset_train.load_coco(coco, dataset_dir=dataset_dir, limit=trainset)
+            dataset_val.load_coco(coco, dataset_dir=dataset_dir, limit=valset)
             del coco
-        
+
         if args.command == "train":
             dataset_train.prepare()
             dataset_val.prepare()
@@ -1260,11 +1261,17 @@ def main():
             evaluate_coco(coco, coco_results)
 
     elif args.command == "predict":
+        if args.cwd == 1:
+            dataset_dir = '.'
+        else:
+            dataset_dir = None
+            for i in range(args.cwd if args.cwd > 1 else 1):
+                dataset_dir = os.path.dirname(dataset_dir if dataset_dir else args.dataset)
+
         dataset = CocoDataset()
         coco = COCO(args.dataset)
         dataset.load_coco(coco,
-                          dataset_dir='.' if args.cwd
-                          else os.path.dirname(args.dataset),
+                          dataset_dir=dataset_dir,
                           limit=args.limit or None,
                           return_coco=True)
         dataset.prepare()
@@ -1277,9 +1284,13 @@ def main():
             coco_results = coco
             coco_results.dataset['annotations'] = []
             coco_results.createIndex()
-        store_coco(coco_results, args.dataset_pred,
-                   dataset_dir='.' if args.cwd
-                   else os.path.dirname(args.dataset_pred))
+        if args.cwd == 1:
+            dataset_dir = '.'
+        else:
+            dataset_dir = None
+            for i in range(args.cwd if args.cwd > 1 else 1):
+                dataset_dir = os.path.dirname(dataset_dir if dataset_dir else args.dataset_pred)
+        store_coco(coco_results, args.dataset_pred, dataset_dir=dataset_dir)
 
     elif args.command == "test":
         # Test dataset (read images from args.files)
@@ -1293,13 +1304,24 @@ def main():
         coco.createIndex()
         if results:
             coco = coco.loadRes(results)
-        store_coco(coco, args.dataset_pred,
-                   dataset_dir='.' if args.cwd
-                   else os.path.dirname(args.dataset_pred))
+        if args.cwd == 1:
+            dataset_dir = '.'
+        else:
+            dataset_dir = None
+            for i in range(args.cwd if args.cwd > 1 else 1):
+                dataset_dir = os.path.dirname(dataset_dir if dataset_dir else args.dataset_pred)
+        store_coco(coco, args.dataset_pred, dataset_dir=dataset_dir)
 
     elif args.command == "merge":
         dataset_merged = CocoDataset()
         for dataset in args.dataset:
+            if args.cwd == 1:
+                dataset_dir = '.'
+            else:
+                dataset_dir = None
+                for i in range(args.cwd if args.cwd > 1 else 1):
+                    dataset_dir = os.path.dirname(dataset_dir if dataset_dir else dataset)
+
             coco = COCO(dataset)
             np.random.seed(args.seed)
             limit = args.limit
@@ -1309,10 +1331,7 @@ def main():
             valset = indexes[int(args.split*limit):]
             # keep original order
             valset = np.sort(valset)
-            dataset_merged.load_coco(coco,
-                                     dataset_dir='.' if args.cwd
-                                     else os.path.dirname(dataset),
-                                     limit=valset)
+            dataset_merged.load_coco(coco, dataset_dir=dataset_dir, limit=valset)
             del coco
         dataset_merged.prepare()
         coco = COCO()
@@ -1331,9 +1350,14 @@ def main():
                 ann['segmentation'] = coco.annToRLE(ann)
         if args.sort:
             coco = sort_coco(coco, combine=args.combine)
+        if args.cwd == 1:
+            dataset_dir = '.'
+        else:
+            dataset_dir = None
+            for i in range(args.cwd if args.cwd > 1 else 1):
+                dataset_dir = os.path.dirname(dataset_dir if dataset_dir else args.dataset_merged)
         store_coco(coco, args.dataset_merged,
-                   dataset_dir='.' if args.cwd
-                   else os.path.dirname(args.dataset_merged),
+                   dataset_dir=dataset_dir,
                    anns_only=args.anns_only)
 
     elif args.command == "compare":
