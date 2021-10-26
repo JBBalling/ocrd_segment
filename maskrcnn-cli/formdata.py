@@ -171,7 +171,7 @@ class CocoConfig(Config):
     NUM_IMAGE_CLASSES = len(SOURCES) # 7 # no extra class
 
     # ...settings to reduce GPU memory requirements...
-    
+
     # Use a smaller backbone network. The default is resnet101,
     # but you can use resnet50 to reduce memory load significantly
     # and it's sufficient for most applications. It also trains faster.
@@ -179,9 +179,9 @@ class CocoConfig(Config):
 
     # Reduce the maximum number of instances per image if your images
     # don't have a lot of objects.
-    MAX_GT_INSTANCES = 2
+    MAX_GT_INSTANCES = 5
     # Max number of final detections
-    DETECTION_MAX_INSTANCES = 1
+    DETECTION_MAX_INSTANCES = 5
     DETECTION_MIN_CONFIDENCE = 0.5
 
     # Use fewer ROIs in training the second stage. This setting
@@ -423,7 +423,7 @@ class CocoDataset(utils.Dataset):
                 # and our input images can only be marked for one class
                 # at a time, so datasets are in fact distinct for each.
                 self.add_class(name, i, name)
-        
+
     def load_coco(self, dataset_json, dataset_dir='.',
                   limit=None, class_ids=None,
                   class_map=None, return_coco=False):
@@ -628,7 +628,7 @@ class CocoDataset(utils.Dataset):
                                 255 * cmask.astype(np.uint8)],
                                axis=2)
         return image
-    
+
     # The following two functions are from pycocotools with a few changes.
 
     def annToRLE(self, ann, height, width):
@@ -1258,7 +1258,7 @@ def main():
                 coco_results.createIndex()
             # compare
             evaluate_coco(coco, coco_results)
-    
+
     elif args.command == "predict":
         dataset = CocoDataset()
         coco = COCO(args.dataset)
@@ -1280,7 +1280,7 @@ def main():
         store_coco(coco_results, args.dataset_pred,
                    dataset_dir='.' if args.cwd
                    else os.path.dirname(args.dataset_pred))
-    
+
     elif args.command == "test":
         # Test dataset (read images from args.files)
         dataset = CocoDataset()
@@ -1296,7 +1296,7 @@ def main():
         store_coco(coco, args.dataset_pred,
                    dataset_dir='.' if args.cwd
                    else os.path.dirname(args.dataset_pred))
-    
+
     elif args.command == "merge":
         dataset_merged = CocoDataset()
         for dataset in args.dataset:
@@ -1335,7 +1335,7 @@ def main():
                    dataset_dir='.' if args.cwd
                    else os.path.dirname(args.dataset_merged),
                    anns_only=args.anns_only)
-    
+
     elif args.command == "compare":
         coco = COCO(args.dataset_pred)
         coco_gt = COCO(args.dataset)
