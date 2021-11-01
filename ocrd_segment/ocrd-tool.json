@@ -717,6 +717,24 @@
       "steps": ["layout/analysis"],
       "parameters": {
       }
+    },
+    "ocrd-segment-evaluate-address": {
+      "executable": "ocrd-segment-evaluate-address",
+      "categories": ["OCR Evaluation"],
+      "description": "Evaluate OCR-Performance of address recognition",
+      "input_file_grp": [
+        "OCR-D-OCR-TESS-deu-SEG-ocropus-ADDR-BLOCK"
+      ],
+      "output_file_grp": [
+        "OCR-D-OCR-TESS-deu-SEG-ocropus-ADDR-BLOCK-EVAL"
+      ],
+      "steps": ["evaluation"],
+      "parameters": {
+        "gt_path": {
+          "type": "string",
+          "description": "Excel-List with GT-Values"
+        }
+      }
     }
   }
 }

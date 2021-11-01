@@ -9,4 +9,8 @@ from .extract_words import ExtractWords
 from .extract_glyphs import ExtractGlyphs
 from .import_image_segmentation import ImportImageSegmentation
 from .import_coco_segmentation import ImportCOCOSegmentation
+<<<<<<< HEAD
 
+=======
+from .evaluate_address import EvaluateAddress
+>>>>>>> added Segmentation (Address-) Evaluator
