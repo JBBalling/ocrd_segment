@@ -20,10 +20,7 @@ from .classify_formdata_text import ClassifyFormDataText
 from .classify_formdata_layout import ClassifyFormDataLayout
 from .classify_formdata_dummy import ClassifyFormDataDummy
 from .postcorrect_formdata import PostCorrectFormData
-<<<<<<< HEAD
-=======
 from .evaluate_address import EvaluateAddress
->>>>>>> added Segmentation (Address-) Evaluator
 
 @click.command()
 @ocrd_cli_options
@@ -119,11 +116,8 @@ def ocrd_segment_classify_formdata_dummy(*args, **kwargs):
 @ocrd_cli_options
 def ocrd_segment_postcorrect_formdata(*args, **kwargs):
     return ocrd_cli_wrap_processor(PostCorrectFormData, *args, **kwargs)
-<<<<<<< HEAD
-=======
 
 @click.command()
 @ocrd_cli_options
 def ocrd_segment_evaluate_address(*args, **kwargs):
     return ocrd_cli_wrap_processor(EvaluateAddress, *args, **kwargs)
->>>>>>> added Segmentation (Address-) Evaluator
