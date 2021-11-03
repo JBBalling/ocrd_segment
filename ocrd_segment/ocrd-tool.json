@@ -709,10 +709,10 @@
     "ocrd-segment-evaluate": {
       "executable": "ocrd-segment-evaluate",
       "categories": ["Layout analysis"],
-      "description": "Compare region segmentations",
+      "description": "Compare region segmentations and do OCR-Evaluation of found Addresses",
       "input_file_grp": [
-        "OCR-D-GT-SEG-BLOCK",
-        "OCR-D-SEG-BLOCK"
+        "OCR-D-OCR-TESS-deu-SEG-ocropus-ADDR-GT",
+        "OCR-D-OCR-TESS-deu-SEG-ocropus-ADDR-BLOCK"
       ],
       "steps": ["layout/analysis"],
       "parameters": {
@@ -720,9 +720,10 @@
     },
     "ocrd-segment-evaluate-address": {
       "executable": "ocrd-segment-evaluate-address",
-      "categories": ["OCR Evaluation"],
-      "description": "Evaluate OCR-Performance of address recognition",
+      "categories": ["OCR and Segmentation Evaluation"],
+      "description": "Evaluate OCR-Performance and Segmentation of address recognition",
       "input_file_grp": [
+        "OCR-D-OCR-TESS-deu-SEG-ocropus-ADDR-GT",
         "OCR-D-OCR-TESS-deu-SEG-ocropus-ADDR-BLOCK"
       ],
       "output_file_grp": [
@@ -732,7 +733,7 @@
       "parameters": {
         "gt_path": {
           "type": "string",
-          "description": "Excel-List with GT-Values"
+          "description": "Based on two Input PAGE-XMLs this processor evaluates the segmentation by the following approach: https://arxiv.org/pdf/2101.08418.pdf. The OCR-Performance is evaluated by CER and WER."
         }
       }
     }
