@@ -74,6 +74,7 @@ setup(
             'ocrd-segment-classify-formdata-text=ocrd_segment.cli:ocrd_segment_classify_formdata_text',
             'ocrd-segment-classify-formdata-layout=ocrd_segment.cli:ocrd_segment_classify_formdata_layout',
             'ocrd-segment-postcorrect-formdata=ocrd_segment.cli:ocrd_segment_postcorrect_formdata',
+            'ocrd-segment-evaluate-address=ocrd_segment.cli:ocrd_segment_evaluate_address'
         ]
     },
 )
