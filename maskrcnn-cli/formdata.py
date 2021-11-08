@@ -742,7 +742,7 @@ def detect_coco(model, dataset, verbose=False, limit=None, image_ids=None, plot=
         image_class = dataset.image_info[image_id]['image_class']
         r = preds[i]
         assert image_cocoid == r['image_id'], "Generator queue failed to preserve image order"
-        image_class_name, image_class_conf = max_argmax(r["image_class"])
+        image_class_conf, image_class_name = max_argmax(r["image_class"])
         image_class_name = SOURCES[image_class_name]
         if verbose:
             print("image {} ({}) [{}/{}:{:2f}] has {} rois with {} distinct classes".format(
@@ -758,7 +758,7 @@ def detect_coco(model, dataset, verbose=False, limit=None, image_ids=None, plot=
                                            r["masks"].astype(np.uint8))
         dataset.image_info[image_id].update({'annotations': image_results,
                                              'image_class': image_class_name,
-                                             'image_class_conf': imgae_class_conf})
+                                             'image_class_conf': image_class_conf})
         results.extend(image_results)
         cocoids.append(image_cocoid)
         if plot:
