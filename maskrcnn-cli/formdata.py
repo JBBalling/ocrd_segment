@@ -752,7 +752,7 @@ def detect_coco(model, dataset, verbose=False, limit=None, image_ids=None, plot=
 
         # Convert results to COCO format
         # Cast masks to uint8 because COCO tools errors out on bool
-        image_results = build_coco_results(dataset, source, image_cocoid,
+        image_results = build_coco_results(dataset, image_source, image_cocoid,
                                            r["rois"], r["class_ids"],
                                            r["scores"],
                                            r["masks"].astype(np.uint8))
