@@ -363,7 +363,7 @@ class ClassifyFormDataLayout(Processor):
             if key == 'masks':
                 vals = [np.moveaxis(val, 2, 0) for val in vals]
             preds[key] = np.concatenate(vals)
-        assert len(preds["rois"]) == len(preds["class_ids"]) == len(preds["scores"]) == len(preds["masks"]) == len(preds["image_class"])
+        assert len(preds["rois"]) == len(preds["class_ids"]) == len(preds["scores"]) == len(preds["masks"])
         LOG.debug("Decoding %d ROIs for %d distinct classes (avg. score: %.2f)",
                   len(preds["class_ids"]),
                   len(np.unique(preds["class_ids"])),
