@@ -369,6 +369,7 @@ class ClassifyFormDataLayout(Processor):
                   len(np.unique(preds["class_ids"])),
                   np.mean(preds["scores"]) if all(preds["scores"].shape) else 0)
 
+        LOG.info("Adding image class as labels to metadata: %s" % preds["image_class"])
         metadata.add_MetadataItem(
             MetadataItemType(
                 type_="processingStep",
