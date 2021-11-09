@@ -366,7 +366,7 @@ class ClassifyFormDataLayout(Processor):
         assert len(preds["rois"]) == len(preds["class_ids"]) == len(preds["scores"]) == len(preds["masks"])
         preds["image_class"] = np.mean(np.reshape(
             preds["image_class"],
-            (len(preds["image_class"]) / len(SOURCES), len(SOURCES))
+            (int(len(preds["image_class"]) / len(SOURCES)), len(SOURCES))
         ), axis=0)
         LOG.debug("Decoding %d ROIs for %d distinct classes (avg. score: %.2f)",
                   len(preds["class_ids"]),
