@@ -44,7 +44,7 @@ from ocrd_models.ocrd_page import (
 from ocrd_modelfactory import page_from_file
 from ocrd import Processor
 
-from maskrcnn_cli.formdata import FIELDS, InferenceConfig
+from maskrcnn_cli.formdata import FIELDS, InferenceConfig, SOURCES
 
 from .config import OCRD_TOOL
 
@@ -364,12 +364,16 @@ class ClassifyFormDataLayout(Processor):
                 vals = [np.moveaxis(val, 2, 0) for val in vals]
             preds[key] = np.concatenate(vals)
         assert len(preds["rois"]) == len(preds["class_ids"]) == len(preds["scores"]) == len(preds["masks"])
+        preds["image_class"] = np.mean(np.reshape(
+            preds["image_class"],
+            (len(preds["image_class"]) / len(SOURCES), len(SOURCES))
+        ), axis=0)
         LOG.debug("Decoding %d ROIs for %d distinct classes (avg. score: %.2f)",
                   len(preds["class_ids"]),
                   len(np.unique(preds["class_ids"])),
                   np.mean(preds["scores"]) if all(preds["scores"].shape) else 0)
 
-        LOG.info("Adding image class as labels to metadata: %s" % preds["image_class"])
+        LOG.info("Image class: %s" % ", ".join(["%s=%.4f" % (SOURCES[i], v) for i, v in enumerate(preds["image_class"])]))
         metadata.add_MetadataItem(
             MetadataItemType(
                 type_="processingStep",
@@ -379,7 +383,7 @@ class ClassifyFormDataLayout(Processor):
                         externalModel="image_class",
                         externalId="parameters",
                         Label=[
-                            LabelType(type_=i, value=v) for i, v in preds["image_class"]
+                            LabelType(type_=SOURCES[i], value=v) for i, v in enumerate(preds["image_class"])
                         ]
                     )
                 ]
