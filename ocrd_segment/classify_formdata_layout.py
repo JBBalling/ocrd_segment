@@ -36,7 +36,10 @@ from ocrd_models.ocrd_page import (
     PageType,
     TextRegionType,
     TextLineType,
-    CoordsType
+    CoordsType,
+    MetadataItemType,
+    LabelsType,
+    LabelType
 )
 from ocrd_modelfactory import page_from_file
 from ocrd import Processor
@@ -159,6 +162,7 @@ class ClassifyFormDataLayout(Processor):
             self.add_metadata(pcgts)
             
             page = pcgts.get_Page()
+            metadata = pcgts.get_Metadata()
             page_image, page_coords, page_image_info = self.workspace.image_from_page(
                 page, page_id,
                 feature_filter='binarized',
@@ -246,7 +250,7 @@ class ClassifyFormDataLayout(Processor):
             threshold = 0.5 * (page_array_bin.min() + page_array_bin.max())
             page_array_bin = np.array(page_array_bin <= threshold, np.bool)
             
-            self._process_page(page, page_image, page_coords, page_id, page_array, page_array_bin, zoomed)
+            self._process_page(page, page_image, page_coords, page_id, page_array, page_array_bin, zoomed, metadata)
             
             file_id = make_file_id(input_file, self.output_file_grp)
             file_path = os.path.join(self.output_file_grp,
@@ -261,7 +265,7 @@ class ClassifyFormDataLayout(Processor):
             LOG.info('created file ID: %s, file_grp: %s, path: %s',
                      file_id, self.output_file_grp, out.local_filename)
     
-    def _process_page(self, page, page_image, page_coords, page_id, page_array, page_array_bin, zoomed):
+    def _process_page(self, page, page_image, page_coords, page_id, page_array, page_array_bin, zoomed, metadata):
         # iterate through all regions that have lines,
         # look for @custom annotated context of any class,
         # derive active classes for this page, and for each class
@@ -354,16 +358,33 @@ class ClassifyFormDataLayout(Processor):
         if not predictions:
             LOG.warning("Detected no form fields on page '%s'", page_id)
             return
-        for key in ['rois', 'class_ids', 'scores', 'masks']:
+        for key in ['rois', 'class_ids', 'scores', 'masks', 'image_class']:
             vals = [pred[key] for pred in predictions]
             if key == 'masks':
                 vals = [np.moveaxis(val, 2, 0) for val in vals]
             preds[key] = np.concatenate(vals)
-        assert len(preds["rois"]) == len(preds["class_ids"]) == len(preds["scores"]) == len(preds["masks"])
+        assert len(preds["rois"]) == len(preds["class_ids"]) == len(preds["scores"]) == len(preds["masks"]) == len(preds["image_class"])
         LOG.debug("Decoding %d ROIs for %d distinct classes (avg. score: %.2f)",
                   len(preds["class_ids"]),
                   len(np.unique(preds["class_ids"])),
                   np.mean(preds["scores"]) if all(preds["scores"].shape) else 0)
+
+        metadata.add_MetadataItem(
+            MetadataItemType(
+                type_="processingStep",
+                name=self.ocrd_tool["steps"][0],
+                Labels=[
+                    LabelsType(
+                        externalModel="image_class",
+                        externalId="parameters",
+                        Label=[
+                            LabelType(type_=i, value=v) for i, v in preds["image_class"]
+                        ]
+                    )
+                ]
+            )
+        )
+
         # apply post-processing to detections:
         # - geometrically: remove overlapping candidates via non-maximum suppression across classes
         # - morphologically: extend masks/bboxes to avoid chopping off fg connected components
