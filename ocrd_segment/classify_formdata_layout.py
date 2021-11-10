@@ -250,7 +250,7 @@ class ClassifyFormDataLayout(Processor):
             threshold = 0.5 * (page_array_bin.min() + page_array_bin.max())
             page_array_bin = np.array(page_array_bin <= threshold, np.bool)
             
-            self._process_page(page, page_image, page_coords, page_id, page_array, page_array_bin, zoomed, metadata)
+            self._process_page(page, page_image, page_coords, page_id, page_array, page_array_bin, zoomed)
             
             file_id = make_file_id(input_file, self.output_file_grp)
             file_path = os.path.join(self.output_file_grp,
@@ -265,7 +265,7 @@ class ClassifyFormDataLayout(Processor):
             LOG.info('created file ID: %s, file_grp: %s, path: %s',
                      file_id, self.output_file_grp, out.local_filename)
     
-    def _process_page(self, page, page_image, page_coords, page_id, page_array, page_array_bin, zoomed, metadata):
+    def _process_page(self, page, page_image, page_coords, page_id, page_array, page_array_bin, zoomed):
         # iterate through all regions that have lines,
         # look for @custom annotated context of any class,
         # derive active classes for this page, and for each class
@@ -374,18 +374,12 @@ class ClassifyFormDataLayout(Processor):
                   np.mean(preds["scores"]) if all(preds["scores"].shape) else 0)
 
         LOG.info("Image class: %s" % ", ".join(["%s=%.4f" % (SOURCES[i], v) for i, v in enumerate(preds["image_class"])]))
-        metadata.add_MetadataItem(
-            MetadataItemType(
-                type_="processingStep",
-                name=self.ocrd_tool["steps"][0],
-                Labels=[
-                    LabelsType(
-                        externalModel="image_class",
-                        externalId="parameters",
-                        Label=[
-                            LabelType(type_=SOURCES[i], value=v) for i, v in enumerate(preds["image_class"])
-                        ]
-                    )
+        page.add_Labels(
+            LabelsType(
+                externalModel="image_class",
+                externalId="parameters",
+                Label=[
+                    LabelType(type_=SOURCES[i], value=v) for i, v in enumerate(preds["image_class"])
                 ]
             )
         )
