@@ -37,7 +37,6 @@ from ocrd_models.ocrd_page import (
     TextRegionType,
     TextLineType,
     CoordsType,
-    MetadataItemType,
     LabelsType,
     LabelType
 )
@@ -162,7 +161,6 @@ class ClassifyFormDataLayout(Processor):
             self.add_metadata(pcgts)
             
             page = pcgts.get_Page()
-            metadata = pcgts.get_Metadata()
             page_image, page_coords, page_image_info = self.workspace.image_from_page(
                 page, page_id,
                 feature_filter='binarized',
