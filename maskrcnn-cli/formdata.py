@@ -131,9 +131,9 @@ SOURCES = ["Sonstige",
 ]
 
 # if not overriden by --depth, use multi-staged training (n-th epoch, layers):
-STAGES = [(40, 'heads'),
-          (120, '4+'),
-          (160, 'all')]
+STAGES = [(50, 'heads'),
+          (150, '4+'),
+          (200, 'all')]
 
 class CocoConfig(Config):
     """Configuration for training on MS COCO.
