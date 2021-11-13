@@ -245,8 +245,7 @@ class EvaluateAddress(Processor):
             #intersecting_dict = count_intersecting_regions(test_candidates_GT, test_candidates_PRED)
             
             
-            # TODO: PAARE NACH IoU und KLASSEN BILDEN -> DANN PAARE ALIGNIEREN UND EVALUIEREN
-            #   -> Parameter für Klassenvergleich übergeben
+            # PAARE NACH IoU und KLASSEN BILDEN -> DANN PAARE ALIGNIEREN UND EVALUIEREN
             f_regions = deepcopy(file_regions)
             max_number_of_predictions = len(file_regions[1].keys())
             pairs = []
