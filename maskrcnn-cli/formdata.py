@@ -525,6 +525,8 @@ class CocoDataset(utils.Dataset):
                                       'width': image_info['width'],
                                       'height': image_info['height'],
                                       'file_name': str(pathlib.Path(image_info['path']).relative_to(dataset_dir)),
+                                      'image_class': image_info['image_class'],
+                                      'image_class_conf': image_info['image_class_conf']
                                       })
             if 'annotations' in image_info:
                 for ann in image_info['annotations']:

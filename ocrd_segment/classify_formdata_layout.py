@@ -669,6 +669,7 @@ def postprocess_numpy(boxes, scores, classes, masks, page_array_bin, categories,
             bad[i] = True
             continue
         worse = score < scores
+        LOG.debug("Klassen %s" % classes[i])
         if classes[i] in [7 , 34, 35]:
             sameclass = False # only 1-best instance for most classes (7 can be multiple)
         else:
