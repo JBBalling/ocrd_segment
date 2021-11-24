@@ -46,7 +46,7 @@ class EvaluateAddress(Processor):
         kwargs['version'] = OCRD_TOOL['version']
         super(EvaluateAddress, self).__init__(*args, **kwargs)
 
-
+    
     def process(self):
         """Align textlines of multiple file groups and calculate distances.
         
@@ -54,7 +54,8 @@ class EvaluateAddress(Processor):
         pageIds. The first file group serves as reference annotation (ground truth).
         
         Open and deserialise PAGE input files, then iterate over the element
-        hierarchy down to the TextLine level, looking at each first TextEquiv.
+        hierarchy down to the Region level, compare overlapping (GT vs PRED) regions 
+        based on IoU and with or without classes. looking at each first TextEquiv.
         Align character sequences in all pairs of lines for the same TextLine IDs,
         and calculate the distances using the error metric `metric`. Accumulate
         distances and sequence lengths per file group globally and per file,
@@ -115,136 +116,29 @@ class EvaluateAddress(Processor):
                 #image_dimensions[i] = page_image.size
 
             # compare lines_a with lines_b -> Calculate distance:
-            #LOG.info(file_regions)
             LOG.info("len(file_regions[0].keys()): %s and len(file_regions[1].keys()): %s", str(len(file_regions[0].keys())), str(len(file_regions[1].keys())))
             
             # make sure that binarized_candidates_by_class_GT[i] ∩ binarized_candidates_by_class_GT[j] = ∅, für i != j
             candidates_by_class_GT = mask_by_class[0]
             candidates_by_class_PRED = mask_by_class[1]
 
-            test_candidates_GT = {
-                1: [np.array([100, 100, 500, 500] ,dtype=np.int16), np.array([100, 550, 500, 950] ,dtype=np.int16), np.array([1000, 100, 1400, 500] ,dtype=np.int16), np.array([1000, 600, 1400, 900], dtype=np.int16)]
-            }
-            test_candidates_PRED = {
-                1: [np.array([120, 120, 500, 950] ,dtype=np.int16), np.array([1080, 180, 1200, 450] ,dtype=np.int16), np.array([1280, 180, 1350, 450] ,dtype=np.int16), np.array([1250, 600, 1400, 900], dtype=np.int16)]
-            }
-
-            img = np.zeros((1000, 2000,3), dtype=np.uint8)
-            img_pred = np.zeros((1000, 2000,3), dtype=np.uint8)
-            img_gt = np.zeros((1000, 2000,3), dtype=np.uint8)
-            gt_color = (255, 0, 0)
-            pred_color = (0, 255, 0)
-            thikness = 2
-
-
-            for key in test_candidates_GT.keys():
-                for i in range(0, len(test_candidates_GT[key])):
-                    img = cv2.rectangle(img, (test_candidates_GT[key][i][0], test_candidates_GT[key][i][1]), (test_candidates_GT[key][i][2], test_candidates_GT[key][i][3]), gt_color, thikness)
-                    img_gt = cv2.rectangle(img_gt, (test_candidates_GT[key][i][0], test_candidates_GT[key][i][1]), (test_candidates_GT[key][i][2], test_candidates_GT[key][i][3]), gt_color, thikness)
-                    #test_candidates_GT[key][i] = calculate_binarized_masks(img_gt, test_candidates_GT[key][i])
-                    #test_candidates_PRED[key][i] = calculate_binarized_masks(img_gt, test_candidates_PRED[key][i])
-            for key in test_candidates_PRED.keys():
-                for i in range(0, len(test_candidates_PRED[key])):
-                    img = cv2.rectangle(img, (test_candidates_PRED[key][i][0], test_candidates_PRED[key][i][1]), (test_candidates_PRED[key][i][2], test_candidates_PRED[key][i][3]), pred_color, thikness)
-                    img_pred = cv2.rectangle(img_pred, (test_candidates_PRED[key][i][0], test_candidates_PRED[key][i][1]), (test_candidates_PRED[key][i][2], test_candidates_PRED[key][i][3]), pred_color, thikness)
-                
-                    
-            cv2.imwrite('TESTIMAGE.jpg', img)
-            cv2.imwrite('TESTIMAGE_GT.jpg', img_gt)
-            cv2.imwrite('TESTIMAGE_PRED.jpg', img_pred)
-
-            #test_candidates_GT = create_valid_Candidates(test_candidates_GT)
-            #test_candidates_PRED = create_valid_Candidates(test_candidates_PRED)
             
-            LOG.info("****************GT*************************")
-            LOG.info(candidates_by_class_GT)
-            LOG.info("****************PRED*************************")
-            LOG.info(candidates_by_class_PRED)
+            LOG.debug("****************GT*************************")
+            LOG.debug(candidates_by_class_GT)
+            LOG.debug("****************PRED*************************")
+            LOG.debug(candidates_by_class_PRED)
 
+            self.run_test()
 
-            # This representation identifies a model-predicted region as under-
-            # segmenting when it overlaps with at least two different ground-
-            # truth regions gk ∈ GIb and gl ∈ GIb. Similarly, a ground-
-            # truth region is involved in under-segmentation when it overlaps
-            # with a prediction region that in turn overlaps with at least two
-            # ground-truth regions. This is represented as GIU = {gi ∈GIb},
-            # s.t. ∃j ∈[1..N ], ∃l ∈[1..M ], i 6= j, sl ∩gi 6= ∅∧sl ∩gj 6= ∅.
-            # This representation counts ground-truth regions gi ∈GIb that
-            # overlap with at least one prediction region sl ∈SIb, while the
-            # prediction region sl overlaps with at least one other prediction
-            # region gj ∈ GIb.
-    
-            # We denote regions in SIb contributing to over-segmentation
-            # as SIO = {si ∈ SIb}, where si ∩ gl != ∅ ∧ sj ∩ gl != ∅, 
-            # i ∈ [1, ··· , M ], j ∈ [1, ··· , M ], l ∈ [1, ··· , N ], i 6= j
+            oversegmentations_PRED_byclass = self.get_regions_that_overlap_with_regions_which_itsself_overlap_with_another_region(candidates_by_class_PRED,candidates_by_class_GT)
+            oversegmentations_GT_byclass = self.get_regions_overlapping_more_than_one_region(candidates_by_class_GT, candidates_by_class_PRED)
 
-            def get_regions_that_overlap_with_regions_which_itsself_overlap_with_another_region(candidates_to_count, candidates_to_check):
-                result = {}
-                for key, region_count in candidates_to_count.items():
-                    result[key] = []
-                    for key2, region_check in candidates_to_check.items():
-                        if key == key2:
-                            for r1 in region_count:
-                                for r2 in region_check:
-                                    if is_overlapping(r1, r2):
-                                        # region count intersects region check -> test if region_check intersects another region_count
-                                        candidates_to_further_check = candidates_to_count
-                                        for key3, region_count2 in candidates_to_further_check.items():
-                                            if key3 == key2:
-                                                for r3 in region_count2:
-                                                    #rect_3 = get_rectangles_from_binaryImage(r3)
-                                                    if np.array_equal(r3, r1):
-                                                        continue
-                                                    if is_overlapping(r3, r2):
-                                                        if np.any(np.all(r1 != result[key], axis=0)):
-                                                            result[key].append(r1)
-
-                
-                return result
-
-            # calculates regions, which overlap with at least 2 other regions (either GT -> Oversegmentation OR PRED -> Undersegmentation)
-            def get_regions_overlapping_more_than_one_region(GT_candidates, PRED_candidates):
-                result = {}
-                for gt_key, gt_region in GT_candidates.items():
-                    result[gt_key] = []
-                    for pred_key, pred_region in PRED_candidates.items():
-                        if gt_key == pred_key:  
-                            for r1 in gt_region:
-                                number_of_intersections = 0
-                                for r2 in pred_region:
-                                    if is_overlapping(r1, r2):
-                                        number_of_intersections += 1
-
-                                if number_of_intersections > 1:
-                                    if np.any(np.all(r1 != result[gt_key], axis=0)):
-                                        result[gt_key].append(r1)
-
-                return result
-
-          
-            oversegmentations_PRED_byclass = get_regions_that_overlap_with_regions_which_itsself_overlap_with_another_region(candidates_by_class_PRED,candidates_by_class_GT)
-            oversegmentations_GT_byclass = get_regions_overlapping_more_than_one_region(candidates_by_class_GT, candidates_by_class_PRED)
-
-            undersegmentations_PRED_byclass = get_regions_overlapping_more_than_one_region(candidates_by_class_PRED, candidates_by_class_GT)
-            undersegmentations_GT_byclass = get_regions_that_overlap_with_regions_which_itsself_overlap_with_another_region(candidates_by_class_GT, candidates_by_class_PRED)
+            undersegmentations_PRED_byclass = self.get_regions_overlapping_more_than_one_region(candidates_by_class_PRED, candidates_by_class_GT)
+            undersegmentations_GT_byclass = self.get_regions_that_overlap_with_regions_which_itsself_overlap_with_another_region(candidates_by_class_GT, candidates_by_class_PRED)
 
             print_rum_or_rom(candidates_by_class_GT, candidates_by_class_PRED, oversegmentations_GT_byclass, oversegmentations_PRED_byclass, "ROM")
-            print_rum_or_rom(candidates_by_class_GT, candidates_by_class_PRED, undersegmentations_GT_byclass, undersegmentations_PRED_byclass, "RUM")
-            
+            print_rum_or_rom(candidates_by_class_GT, candidates_by_class_PRED, undersegmentations_GT_byclass, undersegmentations_PRED_byclass, "RUM")        
 
-
-            overseg_testdata_pred = get_regions_that_overlap_with_regions_which_itsself_overlap_with_another_region(test_candidates_PRED, test_candidates_GT)
-            overseg_testdata_gt = get_regions_overlapping_more_than_one_region(test_candidates_GT, test_candidates_PRED)
-
-            underseg_testdata_pred = get_regions_overlapping_more_than_one_region(test_candidates_PRED, test_candidates_GT)
-            underseg_testdata_gt = get_regions_that_overlap_with_regions_which_itsself_overlap_with_another_region(test_candidates_GT, test_candidates_PRED)
-            LOG.info("TESTDATEN")
-            print_rum_or_rom(test_candidates_GT, test_candidates_PRED, overseg_testdata_gt, overseg_testdata_pred, "ROM")
-            print_rum_or_rom(test_candidates_GT, test_candidates_PRED, underseg_testdata_gt, underseg_testdata_pred, "RUM")
-
-            #intersecting_dict = count_intersecting_regions(test_candidates_GT, test_candidates_PRED)
-            
-            
             # PAARE NACH IoU und KLASSEN BILDEN -> DANN PAARE ALIGNIEREN UND EVALUIEREN
             f_regions = deepcopy(file_regions)
             max_number_of_predictions = len(file_regions[1].keys())
@@ -254,7 +148,7 @@ class EvaluateAddress(Processor):
                     LOG.info("Preventing KeyError: GT-List is longer than Predicted-List! Current index: %s and predictions length: %s", str(i),str(len(file_regions[1].keys())))
                     break
                 best_iou = tuple([None, None]) # tuple(iou, index)
-                for k, ocr_region in enumerate(list(file_regions[1].keys())):   
+                for _, ocr_region in enumerate(list(file_regions[1].keys())):   
                     gt_region_box = array_from_tuple(gt_region)
                     ocr_region_box = array_from_tuple(ocr_region)
                     iou = IoU(gt_region_box, ocr_region_box)
@@ -284,7 +178,7 @@ class EvaluateAddress(Processor):
             LOG.info(pairs)
             
             report = dict()
-            for n, pair in enumerate(pairs):
+            for _, pair in enumerate(pairs):
                 for i, input_file in enumerate(ift):
                     if not i:
                         continue
@@ -481,26 +375,95 @@ class EvaluateAddress(Processor):
                 result[tuple(xywh.values()) + (address_type,)] = textequivs[0].Unicode
                 current_class = CATEGORIES.index(address_type)
                 masks_by_class[current_class].append(list(xywh.values()))
-                                
-        
-            # If no regions are found/classified go to TextLine-Level
-            '''lines = region.get_TextLine()
-            if not lines:
-                LOG.warning("Region '%s' contains no text lines", region.id)
-            for line in lines:
-                textequivs = line.get_TextEquiv()
-                if not textequivs:
-                    LOG.warning("Line '%s' contains no text results", line.id)
-                    continue
-                address_type = get_address_type(line)
-                if address_type in CATEGORIES:
-                    polygon = coordinates_of_segment(region, page_image, page_coords)
-                    if zoomed != 1.0:
-                        polygon = np.round(polygon * zoomed).astype(np.int32)    
-                    xywh = xywh_from_polygon(polygon)
-                    textequivs = line.get_TextEquiv()
-                    result[tuple(xywh.values()) + (address_type,)] = textequivs[0].Unicode '''
+
         return result, masks_by_class
+
+    # calculate regions which overlap with regions which itself overlap with another region
+    def get_regions_that_overlap_with_regions_which_itsself_overlap_with_another_region(candidates_to_count, candidates_to_check):
+        result = {}
+        for key, region_count in candidates_to_count.items():
+            result[key] = []
+            for key2, region_check in candidates_to_check.items():
+                if key == key2:
+                    for r1 in region_count:
+                        for r2 in region_check:
+                            if is_overlapping(r1, r2):
+                                # region count intersects region check -> test if region_check intersects another region_count
+                                candidates_to_further_check = candidates_to_count
+                                for key3, region_count2 in candidates_to_further_check.items():
+                                    if key3 == key2:
+                                        for r3 in region_count2:
+                                            #rect_3 = get_rectangles_from_binaryImage(r3)
+                                            if np.array_equal(r3, r1):
+                                                continue
+                                            if is_overlapping(r3, r2):
+                                                if np.any(np.all(r1 != result[key], axis=0)):
+                                                    result[key].append(r1)
+
+        
+        return result
+
+    # calculates regions, which overlap with at least 2 other regions (either GT overlaps with 2 PRED Regions -> Oversegmentation OR PRED overlaps with 2 GT Regions -> Undersegmentation)
+    def get_regions_overlapping_more_than_one_region(GT_candidates, PRED_candidates):
+        result = {}
+        for gt_key, gt_region in GT_candidates.items():
+            result[gt_key] = []
+            for pred_key, pred_region in PRED_candidates.items():
+                if gt_key == pred_key:  
+                    for r1 in gt_region:
+                        number_of_intersections = 0
+                        for r2 in pred_region:
+                            if is_overlapping(r1, r2):
+                                number_of_intersections += 1
+
+                        if number_of_intersections > 1:
+                            if np.any(np.all(r1 != result[gt_key], axis=0)):
+                                result[gt_key].append(r1)
+
+        return result
+
+    def run_test(self):
+        test_candidates_GT = {
+            1: [np.array([100, 100, 500, 500] ,dtype=np.int16), np.array([100, 550, 500, 950] ,dtype=np.int16), np.array([1000, 100, 1400, 500] ,dtype=np.int16), np.array([1000, 600, 1400, 900], dtype=np.int16)]
+        }
+        test_candidates_PRED = {
+            1: [np.array([120, 120, 500, 950] ,dtype=np.int16), np.array([1080, 180, 1200, 450] ,dtype=np.int16), np.array([1280, 180, 1350, 450] ,dtype=np.int16), np.array([1250, 600, 1400, 900], dtype=np.int16)]
+        }
+
+        img = np.zeros((1000, 2000,3), dtype=np.uint8)
+        img_pred = np.zeros((1000, 2000,3), dtype=np.uint8)
+        img_gt = np.zeros((1000, 2000,3), dtype=np.uint8)
+        gt_color = (255, 0, 0)
+        pred_color = (0, 255, 0)
+        thikness = 2
+
+
+        for key in test_candidates_GT.keys():
+            for i in range(0, len(test_candidates_GT[key])):
+                img = cv2.rectangle(img, (test_candidates_GT[key][i][0], test_candidates_GT[key][i][1]), (test_candidates_GT[key][i][2], test_candidates_GT[key][i][3]), gt_color, thikness)
+                img_gt = cv2.rectangle(img_gt, (test_candidates_GT[key][i][0], test_candidates_GT[key][i][1]), (test_candidates_GT[key][i][2], test_candidates_GT[key][i][3]), gt_color, thikness)
+                #test_candidates_GT[key][i] = calculate_binarized_masks(img_gt, test_candidates_GT[key][i])
+                #test_candidates_PRED[key][i] = calculate_binarized_masks(img_gt, test_candidates_PRED[key][i])
+        for key in test_candidates_PRED.keys():
+            for i in range(0, len(test_candidates_PRED[key])):
+                img = cv2.rectangle(img, (test_candidates_PRED[key][i][0], test_candidates_PRED[key][i][1]), (test_candidates_PRED[key][i][2], test_candidates_PRED[key][i][3]), pred_color, thikness)
+                img_pred = cv2.rectangle(img_pred, (test_candidates_PRED[key][i][0], test_candidates_PRED[key][i][1]), (test_candidates_PRED[key][i][2], test_candidates_PRED[key][i][3]), pred_color, thikness)
+            
+                
+        cv2.imwrite('TESTIMAGE.jpg', img)
+        cv2.imwrite('TESTIMAGE_GT.jpg', img_gt)
+        cv2.imwrite('TESTIMAGE_PRED.jpg', img_pred)
+
+        overseg_testdata_pred = self.get_regions_that_overlap_with_regions_which_itsself_overlap_with_another_region(test_candidates_PRED, test_candidates_GT)
+        overseg_testdata_gt = self.get_regions_overlapping_more_than_one_region(test_candidates_GT, test_candidates_PRED)
+
+        underseg_testdata_pred = self.get_regions_overlapping_more_than_one_region(test_candidates_PRED, test_candidates_GT)
+        underseg_testdata_gt = self.get_regions_that_overlap_with_regions_which_itsself_overlap_with_another_region(test_candidates_GT, test_candidates_PRED)
+        print("TESTDATEN")
+        print_rum_or_rom(test_candidates_GT, test_candidates_PRED, overseg_testdata_gt, overseg_testdata_pred, "ROM")
+        print_rum_or_rom(test_candidates_GT, test_candidates_PRED, underseg_testdata_gt, underseg_testdata_pred, "RUM")
+
+
 
 def print_rum_or_rom(gt_candidates, pred_candidates, segmentation_gt, segmentation_pred, rum_or_rom):
     if rum_or_rom == "ROM":
@@ -565,13 +528,6 @@ def is_overlapping(boxA, boxB):
     y2_A, y2_B = boxA[3], boxB[3]
     if (x1_A < x2_B and x1_B < x2_A and y1_A < y2_B and y1_B < y2_A):
         val = True
-    # gt_color, pred_color = (255, 0, 0), (0, 255, 0)
-    # thikness = 2
-    # img = np.zeros((1000, 2000, 3), dtype=np.uint8)
-    # img = cv2.rectangle(img, (boxA[0], boxA[1]), (boxA[2], boxA[3]), gt_color, thikness)
-    # img = cv2.rectangle(img, (boxB[0], boxB[1]), (boxB[2], boxB[3]), pred_color, thikness)
-    # imgplot = plt.imshow(img)
-    # plt.show()
     return val
     
 def get_address_type(segment):
@@ -610,8 +566,6 @@ def ROR(GT_OS, PRED_OS, GT_B, PRED_B):
     return ((len(GT_OS) * len(PRED_OS)) / (len(GT_B) * len(PRED_B)))
 
 # penalize ROR Score based on the total number of over-segmenting prediction region
-# S_gi = {s_j ∈ S_b}, such that s_j ∩ g_i != ∅
-# m0 
 # m0 = SUM((gi) max(#PRED_gi-1, 0) 
 def calculate_m_OS(PRED_B, GT_B):
     m0 = 0
