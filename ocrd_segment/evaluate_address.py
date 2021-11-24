@@ -130,11 +130,11 @@ class EvaluateAddress(Processor):
 
             self.run_test()
 
-            oversegmentations_PRED_byclass = self.get_regions_that_overlap_with_regions_which_itsself_overlap_with_another_region(candidates_by_class_PRED,candidates_by_class_GT)
-            oversegmentations_GT_byclass = self.get_regions_overlapping_more_than_one_region(candidates_by_class_GT, candidates_by_class_PRED)
+            oversegmentations_PRED_byclass = get_regions_that_overlap_with_regions_which_itsself_overlap_with_another_region(candidates_by_class_PRED,candidates_by_class_GT)
+            oversegmentations_GT_byclass = get_regions_overlapping_more_than_one_region(candidates_by_class_GT, candidates_by_class_PRED)
 
-            undersegmentations_PRED_byclass = self.get_regions_overlapping_more_than_one_region(candidates_by_class_PRED, candidates_by_class_GT)
-            undersegmentations_GT_byclass = self.get_regions_that_overlap_with_regions_which_itsself_overlap_with_another_region(candidates_by_class_GT, candidates_by_class_PRED)
+            undersegmentations_PRED_byclass = get_regions_overlapping_more_than_one_region(candidates_by_class_PRED, candidates_by_class_GT)
+            undersegmentations_GT_byclass = get_regions_that_overlap_with_regions_which_itsself_overlap_with_another_region(candidates_by_class_GT, candidates_by_class_PRED)
 
             print_rum_or_rom(candidates_by_class_GT, candidates_by_class_PRED, oversegmentations_GT_byclass, oversegmentations_PRED_byclass, "ROM")
             print_rum_or_rom(candidates_by_class_GT, candidates_by_class_PRED, undersegmentations_GT_byclass, undersegmentations_PRED_byclass, "RUM")        
@@ -378,50 +378,6 @@ class EvaluateAddress(Processor):
 
         return result, masks_by_class
 
-    # calculate regions which overlap with regions which itself overlap with another region
-    def get_regions_that_overlap_with_regions_which_itsself_overlap_with_another_region(self, candidates_to_count, candidates_to_check):
-        result = {}
-        for key, region_count in candidates_to_count.items():
-            result[key] = []
-            for key2, region_check in candidates_to_check.items():
-                if key == key2:
-                    for r1 in region_count:
-                        for r2 in region_check:
-                            if is_overlapping(r1, r2):
-                                # region count intersects region check -> test if region_check intersects another region_count
-                                candidates_to_further_check = candidates_to_count
-                                for key3, region_count2 in candidates_to_further_check.items():
-                                    if key3 == key2:
-                                        for r3 in region_count2:
-                                            #rect_3 = get_rectangles_from_binaryImage(r3)
-                                            if np.array_equal(r3, r1):
-                                                continue
-                                            if is_overlapping(r3, r2):
-                                                if np.any(np.all(r1 != result[key], axis=0)):
-                                                    result[key].append(r1)
-
-        
-        return result
-
-    # calculates regions, which overlap with at least 2 other regions (either GT overlaps with 2 PRED Regions -> Oversegmentation OR PRED overlaps with 2 GT Regions -> Undersegmentation)
-    def get_regions_overlapping_more_than_one_region(self, GT_candidates, PRED_candidates):
-        result = {}
-        for gt_key, gt_region in GT_candidates.items():
-            result[gt_key] = []
-            for pred_key, pred_region in PRED_candidates.items():
-                if gt_key == pred_key:  
-                    for r1 in gt_region:
-                        number_of_intersections = 0
-                        for r2 in pred_region:
-                            if is_overlapping(r1, r2):
-                                number_of_intersections += 1
-
-                        if number_of_intersections > 1:
-                            if np.any(np.all(r1 != result[gt_key], axis=0)):
-                                result[gt_key].append(r1)
-
-        return result
-
     def run_test(self):
         test_candidates_GT = {
             1: [np.array([100, 100, 500, 500] ,dtype=np.int16), np.array([100, 550, 500, 950] ,dtype=np.int16), np.array([1000, 100, 1400, 500] ,dtype=np.int16), np.array([1000, 600, 1400, 900], dtype=np.int16)]
@@ -454,14 +410,60 @@ class EvaluateAddress(Processor):
         cv2.imwrite('TESTIMAGE_GT.jpg', img_gt)
         cv2.imwrite('TESTIMAGE_PRED.jpg', img_pred)
 
-        overseg_testdata_pred = self.get_regions_that_overlap_with_regions_which_itsself_overlap_with_another_region(test_candidates_PRED, test_candidates_GT)
-        overseg_testdata_gt = self.get_regions_overlapping_more_than_one_region(test_candidates_GT, test_candidates_PRED)
+        overseg_testdata_pred = get_regions_that_overlap_with_regions_which_itsself_overlap_with_another_region(test_candidates_PRED, test_candidates_GT)
+        overseg_testdata_gt = get_regions_overlapping_more_than_one_region(test_candidates_GT, test_candidates_PRED)
 
-        underseg_testdata_pred = self.get_regions_overlapping_more_than_one_region(test_candidates_PRED, test_candidates_GT)
-        underseg_testdata_gt = self.get_regions_that_overlap_with_regions_which_itsself_overlap_with_another_region(test_candidates_GT, test_candidates_PRED)
+        underseg_testdata_pred = get_regions_overlapping_more_than_one_region(test_candidates_PRED, test_candidates_GT)
+        underseg_testdata_gt = get_regions_that_overlap_with_regions_which_itsself_overlap_with_another_region(test_candidates_GT, test_candidates_PRED)
         print("TESTDATEN")
         print_rum_or_rom(test_candidates_GT, test_candidates_PRED, overseg_testdata_gt, overseg_testdata_pred, "ROM")
         print_rum_or_rom(test_candidates_GT, test_candidates_PRED, underseg_testdata_gt, underseg_testdata_pred, "RUM")
+
+# calculate regions which overlap with regions which itself overlap with another region
+def get_regions_that_overlap_with_regions_which_itsself_overlap_with_another_region(candidates_to_count, candidates_to_check):
+    result = {}
+    for key, region_count in candidates_to_count.items():
+        result[key] = []
+        for key2, region_check in candidates_to_check.items():
+            if key == key2:
+                for r1 in region_count:
+                    for r2 in region_check:
+                        if is_overlapping(r1, r2):
+                            # region count intersects region check -> test if region_check intersects another region_count
+                            candidates_to_further_check = candidates_to_count
+                            for key3, region_count2 in candidates_to_further_check.items():
+                                if key3 == key2:
+                                    for r3 in region_count2:
+                                        #rect_3 = get_rectangles_from_binaryImage(r3)
+                                        if np.array_equal(r3, r1):
+                                            continue
+                                        if is_overlapping(r3, r2):
+                                            if np.any(np.all(r1 != result[key], axis=0)):
+                                                result[key].append(r1)
+
+    
+    return result
+
+# calculates regions, which overlap with at least 2 other regions (either GT overlaps with 2 PRED Regions -> Oversegmentation OR PRED overlaps with 2 GT Regions -> Undersegmentation)
+def get_regions_overlapping_more_than_one_region(GT_candidates, PRED_candidates):
+    result = {}
+    for gt_key, gt_region in GT_candidates.items():
+        result[gt_key] = []
+        for pred_key, pred_region in PRED_candidates.items():
+            if gt_key == pred_key:  
+                for r1 in gt_region:
+                    number_of_intersections = 0
+                    for r2 in pred_region:
+                        if is_overlapping(r1, r2):
+                            number_of_intersections += 1
+
+                    if number_of_intersections > 1:
+                        if np.any(np.all(r1 != result[gt_key], axis=0)):
+                            result[gt_key].append(r1)
+
+    return result
+
+    
 
 
 
