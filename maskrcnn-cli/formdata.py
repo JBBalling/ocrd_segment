@@ -204,7 +204,7 @@ class CocoConfig(Config):
     IMAGE_MAX_DIM = 768
 
     # ...settings to accommodate alpha channel input...
-    IMAGE_CHANNEL_COUNT = 5
+    IMAGE_CHANNEL_COUNT = 6
     # don't touch the alpha channel
     MEAN_PIXEL = np.array([123.7, 116.8, 103.9, 0, 0])
 
