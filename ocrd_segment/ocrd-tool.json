@@ -728,6 +728,16 @@
       "steps": ["layout/analysis"],
       "parameters": {
       }
+    },
+    "ocrd-segment-mark-numbers-and-text": {
+      "executable": "ocrd-segment-mark-numbers-and-text",
+      "categories": ["Layout analysis"],
+      "description": "Marks Text as text and Numbers as numbers",
+      "input_file_grp": [
+        "OCR-D-OCR-TESS-deu-SEG-tesseract-sparse-CROP-FORM-TEXT"
+      ],
+      "steps": ["layout/analysis"],
+      "parameters": {}
     }
   }
 }

@@ -25,6 +25,7 @@ Installs:
     - ocrd-segment-classify-formdata-text
     - ocrd-segment-classify-formdata-layout
     - ocrd-segment-postcorrect-formdata
+    - ocrd-segment-mark-numbers-and-text
 """
 import codecs
 
@@ -74,6 +75,7 @@ setup(
             'ocrd-segment-classify-formdata-text=ocrd_segment.cli:ocrd_segment_classify_formdata_text',
             'ocrd-segment-classify-formdata-layout=ocrd_segment.cli:ocrd_segment_classify_formdata_layout',
             'ocrd-segment-postcorrect-formdata=ocrd_segment.cli:ocrd_segment_postcorrect_formdata',
+            'ocrd-segment-mark-numbers-and-text=ocrd_segment.cli:ocrd_segment_mark_numbers_and_text'
         ]
     },
 )
