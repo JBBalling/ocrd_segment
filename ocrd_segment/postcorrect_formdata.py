@@ -29,8 +29,9 @@ TYPES = {
     'integer': re.compile(r'^(0|[1-9][0-9]*(( *|\.)[0-9]{3})*)$'),
     'integer2': re.compile(r'^[1-9][0-9]$'),
     'float': re.compile(r'^(0|[1-9][0-9]*(( *|\.)[0-9]{3})*)(,[0-9]{1,3})?$'),
-    'float6': re.compile(r'^(0|[1-9][0-9]*(( *|\.)[0-9]{3}){0,1})(,[0-9]{1,3})?$'),
-    'costs': re.compile(r'^(0|[1-9][0-9]*(( *|\.)[0-9]{3})*)(,[0-9]{2})?( *€?)$'),
+    'float_': re.compile(r'(0|[1-9][0-9]*(( *|\.)[0-9]{3})*)(,[0-9]{1,3})?'),
+    'float6': re.compile(r'^(0|[1-9][0-9]*(( *|\.)[0-9]{3}){0,1})(,[0-9]{1,6})?$'),
+    'costs': re.compile(r'^(0|[1-9][0-9]*(( *|\.)[0-9]{3})*)(,[0-9]{1,6})?( *€?)$'),
     # already matched/classified by context classifier:
     'energy': re.compile(r'^(erdgas|fluessiggas|fernwaerme|heizoel|holz|strom)$'),
     'energyunit': re.compile(r'^(liter|cbm|kg|kwh|mwh|gj)$'),
@@ -50,8 +51,8 @@ PATTERNS = {
     "energietraeger_kosten": TYPES['costs'],
     "gebaeude_flaeche": TYPES['float6'],
     "wohnung_flaeche": TYPES['float6'],
-    "gebaeude_verbrauchseinheiten": TYPES['float'],
-    "wohnung_verbrauchseinheiten": TYPES['float'],
+    "gebaeude_verbrauchseinheiten": TYPES['float_'],
+    "wohnung_verbrauchseinheiten": TYPES['float_'],
     "gebaeude_warmwasser_verbrauch": TYPES['float'],
     "gebaeude_warmwasser_verbrauch_einheit": TYPES['waterunit'],
     "kaltwasser_fuer_warmwasser": None,
@@ -95,7 +96,7 @@ RENAME_FIELDS = {
 
 # normalize spelling
 def normalize(text):
-    text = text.strip()
+    text = text.strip(" .,;:")
     # try reducing allcaps to titlecase
     text = ' '.join(word.title() if word.isupper() else word
                     for word in text.split())
@@ -128,6 +129,7 @@ def match(category, texts, segment=''):
         else:
             textn += 1
         text = normalize(text)
+        LOG.info("text: %s, text0: %s, textn: %s" % (text, text0, textn))
         if text in keys:
             if text == text0:
                 LOG.debug("direct match for '%s' in %s: %s", text, category, keys[text])
@@ -142,6 +144,17 @@ def match(category, texts, segment=''):
             else:
                 LOG.debug("pattern match for '%s' over '%s' in %s: %s", text, text0, category, pattern.pattern)
             yield text, conf, pattern.pattern
+        elif pattern.match(text):
+            LOG.info("NORMAL MATCH - text: %s, text0: %s, textn: %s" % (text, text0, textn))
+        elif pattern.findall(text):
+            LOG.info("FINDALL MATCH - text: %s, text0: %s, textn: %s" % (text, text0, textn))
+            LOG.info(pattern.findall(text))
+        elif pattern.search(text):
+            LOG.info("SEARCH MATCH - text: %s, text0: %s, textn: %s" % (text, text0, textn))
+            LOG.info(pattern.search(text))
+        elif re.findall(pattern, text):
+            LOG.info("FINDALL MATCH 2 - text: %s, text0: %s, textn: %s" % (text, text0, textn))
+            LOG.info(pattern.findall(text))
     LOG.warning("no match for '%s' (or %d alternatives) in %s at '%s'", text0, textn, category, segment)
 
 def prepend(value, iterator):

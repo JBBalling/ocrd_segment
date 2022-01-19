@@ -117,6 +117,7 @@ class EvaluateAddress(Processor):
 
             # compare lines_a with lines_b -> Calculate distance:
             LOG.info("len(file_regions[0].keys()): %s and len(file_regions[1].keys()): %s", str(len(file_regions[0].keys())), str(len(file_regions[1].keys())))
+            LOG.info()
             
             # make sure that binarized_candidates_by_class_GT[i] ∩ binarized_candidates_by_class_GT[j] = ∅, für i != j
             candidates_by_class_GT = mask_by_class[0]
@@ -136,8 +137,8 @@ class EvaluateAddress(Processor):
             undersegmentations_PRED_byclass = get_regions_overlapping_more_than_one_region(candidates_by_class_PRED, candidates_by_class_GT)
             undersegmentations_GT_byclass = get_regions_that_overlap_with_regions_which_itsself_overlap_with_another_region(candidates_by_class_GT, candidates_by_class_PRED)
 
-            print_rum_or_rom(candidates_by_class_GT, candidates_by_class_PRED, oversegmentations_GT_byclass, oversegmentations_PRED_byclass, "ROM")
-            print_rum_or_rom(candidates_by_class_GT, candidates_by_class_PRED, undersegmentations_GT_byclass, undersegmentations_PRED_byclass, "RUM")        
+            rom_by_class = print_rum_or_rom(candidates_by_class_GT, candidates_by_class_PRED, oversegmentations_GT_byclass, oversegmentations_PRED_byclass, "ROM")
+            rum_by_class = print_rum_or_rom(candidates_by_class_GT, candidates_by_class_PRED, undersegmentations_GT_byclass, undersegmentations_PRED_byclass, "RUM")        
 
             # PAARE NACH IoU und KLASSEN BILDEN -> DANN PAARE ALIGNIEREN UND EVALUIEREN
             f_regions = deepcopy(file_regions)
@@ -227,8 +228,10 @@ class EvaluateAddress(Processor):
                         'word-error-rate': wdist,
                         #'line-error-rate': ldist,
                         'gt': gt_regions,
-                        'ocr': region_ocr}})
-                
+                        'ocr': region_ocr,
+                        'ROM': rom_by_class[CATEGORIES.index(gt_region_id[-1])],
+                        'RUM': rum_by_class[CATEGORIES.index(gt_region_id[-1])]}})
+            
 
             # report results for file
             for i, input_file in enumerate(ift):
@@ -243,12 +246,21 @@ class EvaluateAddress(Processor):
                          file_wedits[i].mean, sqrt(file_wedits[i].varia),
                          input_file.pageId, ifgs[0], ifgs[i])
                 pair = ifgs[0] + ',' + ifgs[i]
+                ROM_of_fileGroup = 0
+                RUM_of_fileGroup = 0
+                for value in rom_by_class.values():
+                    ROM_of_fileGroup += value
+                for value in rum_by_class.values():
+                    RUM_of_fileGroup += value
+
                 if pair in report:
                     report[pair]['num-lines'] = file_cedits[i].length
                     report[pair]['char-error-rate-mean'] = file_cedits[i].mean
                     report[pair]['char-error-rate-varia'] = file_cedits[i].varia
                     report[pair]['word-error-rate-mean'] = file_wedits[i].mean
                     report[pair]['word-error-rate-varia'] = file_wedits[i].varia
+                    report[pair]['ROM-mean'] = (ROM_of_fileGroup/len(rom_by_class))
+                    report[pair]['RUM-mean'] = (RUM_of_fileGroup/len(rum_by_class))
                     # accumulate edit counts for files
                     cedits[i].merge(file_cedits[i])
                     wedits[i].merge(file_wedits[i])
@@ -374,7 +386,9 @@ class EvaluateAddress(Processor):
                 textequivs = region.get_TextEquiv()
                 result[tuple(xywh.values()) + (address_type,)] = textequivs[0].Unicode
                 current_class = CATEGORIES.index(address_type)
-                masks_by_class[current_class].append(list(xywh.values()))
+                # some regions are detected twice? -> reading order
+                if list(xywh.values()) not in masks_by_class[current_class]:
+                    masks_by_class[current_class].append(list(xywh.values()))
 
         return result, masks_by_class
 
@@ -463,10 +477,6 @@ def get_regions_overlapping_more_than_one_region(GT_candidates, PRED_candidates)
 
     return result
 
-    
-
-
-
 def print_rum_or_rom(gt_candidates, pred_candidates, segmentation_gt, segmentation_pred, rum_or_rom):
     if rum_or_rom == "ROM":
         if len(gt_candidates) > 0 and len(pred_candidates) > 0:
@@ -519,8 +529,14 @@ def print_rum_or_rom(gt_candidates, pred_candidates, segmentation_gt, segmentati
         else:
             print("RUM BY CLASS COULDNT BE CALCULATED BECAUSE BINARIZED_CANDIDATES BY CLASS (GT) AND/OR BINARIZED_CANDIDATES BY CLASS (PRED) are empty.")    
 
+    result = None
+    if rum_or_rom == "ROM":
+        result = rom_by_class
+    else:
+        result = rum_by_class
 
-    pass
+    return result
+
             
 def is_overlapping(boxA, boxB):
     val = False
