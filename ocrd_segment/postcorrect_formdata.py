@@ -97,6 +97,7 @@ RENAME_FIELDS = {
 # normalize spelling
 def normalize(text):
     text = text.strip(" .,;:")
+    text = text.rstrip("-+")
     # try reducing allcaps to titlecase
     text = ' '.join(word.title() if word.isupper() else word
                     for word in text.split())
@@ -118,6 +119,7 @@ def match(category, texts, segment=''):
     keys = KEYS.get(category, [])
     pattern = PATTERNS[category]
     num_constraint = NUM_CONSTRAINTS.get(category, None)
+    match = False
     text0 = ''
     textn = 0
     for text, conf in texts:
@@ -129,12 +131,12 @@ def match(category, texts, segment=''):
         else:
             textn += 1
         text = normalize(text)
-        LOG.info("text: %s, text0: %s, textn: %s" % (text, text0, textn))
         if text in keys:
             if text == text0:
                 LOG.debug("direct match for '%s' in %s: %s", text, category, keys[text])
             else:
                 LOG.debug("direct match for '%s' over '%s' in %s: %s", text, text0, category, keys[text])
+            match = True
             yield keys[text], conf, text
         if pattern.fullmatch(text) and (
                 num_constraint is None or
@@ -143,19 +145,10 @@ def match(category, texts, segment=''):
                 LOG.debug("pattern match for '%s' in %s: %s", text, category, pattern.pattern)
             else:
                 LOG.debug("pattern match for '%s' over '%s' in %s: %s", text, text0, category, pattern.pattern)
+            match = True
             yield text, conf, pattern.pattern
-        elif pattern.match(text):
-            LOG.info("NORMAL MATCH - text: %s, text0: %s, textn: %s" % (text, text0, textn))
-        elif pattern.findall(text):
-            LOG.info("FINDALL MATCH - text: %s, text0: %s, textn: %s" % (text, text0, textn))
-            LOG.info(pattern.findall(text))
-        elif pattern.search(text):
-            LOG.info("SEARCH MATCH - text: %s, text0: %s, textn: %s" % (text, text0, textn))
-            LOG.info(pattern.search(text))
-        elif re.findall(pattern, text):
-            LOG.info("FINDALL MATCH 2 - text: %s, text0: %s, textn: %s" % (text, text0, textn))
-            LOG.info(pattern.findall(text))
-    LOG.warning("no match for '%s' (or %d alternatives) in %s at '%s'", text0, textn, category, segment)
+    if not match:
+        LOG.warning("no match for '%s' (or %d alternatives) in %s at '%s'", text0, textn, category, segment)
 
 def prepend(value, iterator):
     return itertools.chain([value], iterator)
