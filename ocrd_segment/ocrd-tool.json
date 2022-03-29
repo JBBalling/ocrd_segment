@@ -757,6 +757,24 @@
           "description": "Based on two Input PAGE-XMLs this processor evaluates the segmentation by the following approach: https://arxiv.org/pdf/2101.08418.pdf. The OCR-Performance is evaluated by CER and WER."
         }
       }
+    },
+    "ocrd-segment-extract-textline": {
+      "executable": "ocrd-segment-extract-textline",
+      "categories": ["Image processing gor GT creation"],
+      "description": "Extract all Textlines from preprocessed Document and export to COCO format",
+      "input_file_grp": [
+        "OCR-D-OCR-TESS-deu-SEG-ocropus-ADDR-LINE"
+      ],
+      "output_file_grp": [
+        "OCR-D-OCR-TESS-deu-SEG-ocropus-ADDR-LINE-COCO"
+      ],
+      "steps": ["ground truth creation"],
+      "parameters": {
+        "gt_path": {
+          "type": "string",
+          "description": "Create GT of textlines from textlines created with OCR-D-Ocropus"
+        }
+      }
     }
   }
 }
