@@ -71,6 +71,8 @@ class ExtractTextline(Processor):
         """
         categories = [{'id': 0, 'name': 'BG'},
                     {'id': 1, 'name': 'Textline'}]
+
+        
         # COCO Datastructure
         images = list()
         annotations = list()
@@ -79,6 +81,7 @@ class ExtractTextline(Processor):
         assert_file_grp_cardinality(self.output_file_grp, 2)
         image_file_grp, json_file_grp = self.output_file_grp.split(',')
         # pylint: disable=attribute-defined-outside-init
+        LOG.info(categories[1]["id"])
         i = 0
         for n, input_file in enumerate(self.input_files):
             page_id = input_file.pageId or input_file.ID
@@ -126,10 +129,11 @@ class ExtractTextline(Processor):
                     area = poly.area
                     # COCO: add annotations
                     i += 1
-                    LOG.info([xywh['x'], xywh['y'], xywh['w'], xywh['h']])
+                    # LOG.info([xywh['x'], xywh['y'], xywh['w'], xywh['h']])
+                    
                     annotations.append(
                         {'id': i, 'image_id': num_page_id,
-                        'category_id': categories[1],
+                        'category_id': categories[1]["id"],
                         'segmentation': polygon2,
                         'area': area,
                         'bbox': [xywh['x'], xywh['y'], xywh['w'], xywh['h']],
