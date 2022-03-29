@@ -96,7 +96,7 @@ RENAME_FIELDS = {
 
 # normalize spelling
 def normalize(text):
-    text = text.strip(" .,;:")
+    text = text.strip(' .,;:="')
     text = text.rstrip("-+")
     # try reducing allcaps to titlecase
     text = ' '.join(word.title() if word.isupper() else word

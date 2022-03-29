@@ -18,7 +18,7 @@ from ocrd import Processor
 
 import pathlib
 from .config import OCRD_TOOL
-from ocrd_cor_asv_ann.lib.alignment import Alignment, Edits
+#from ocrd_cor_asv_ann.lib.alignment import Alignment, Edits
 from math import fabs, sqrt, tanh
 import numpy as np
 from copy import deepcopy
