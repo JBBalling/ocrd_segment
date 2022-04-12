@@ -19,20 +19,20 @@ from ocrd import Processor
 
 from .config import OCRD_TOOL
 
-TOOL = 'ocrd-segment-extract-textline'
+TOOL = 'ocrd-segment-extract-region-COCO'
 
-class ExtractTextline(Processor):
+class ExtractRegionCOCO(Processor):
 
     def __init__(self, *args, **kwargs):
         kwargs['ocrd_tool'] = OCRD_TOOL['tools'][TOOL]
         kwargs['version'] = OCRD_TOOL['version']
-        super(ExtractTextline, self).__init__(*args, **kwargs)
+        super(ExtractRegionCOCO, self).__init__(*args, **kwargs)
 
     def process(self):
-        """Extract textline images and texts from the workspace.
+        """Extract region images and texts from the workspace.
         
         Open and deserialize PAGE input files and their respective images,
-        then iterate over the element hierarchy down to the line level.
+        then iterate over the element hierarchy down to the region level.
         
         Extract an image for each textline (which depending on the workflow
         can already be deskewed, dewarped, binarized etc.), cropped to its
@@ -70,13 +70,13 @@ class ExtractTextline(Processor):
         (This is intended for training and evaluation of OCR models.)
         """
         categories = [{'id': 0, 'name': 'BG'},
-                    {'id': 1, 'name': 'Textline'}]
+                    {'id': 1, 'name': 'Region'}]
 
         
         # COCO Datastructure
         images = list()
         annotations = list()
-        LOG = getLogger('processor.ExtractTextlines')
+        LOG = getLogger('processor.ExtractRegions')
         assert_file_grp_cardinality(self.input_file_grp, 1)
         assert_file_grp_cardinality(self.output_file_grp, 2)
         image_file_grp, json_file_grp = self.output_file_grp.split(',')
@@ -111,38 +111,38 @@ class ExtractTextline(Processor):
                     region, page_image, page_coords)
                     #feature_filter=self.parameter['feature_filter'],
                     #transparency=self.parameter['transparency'])              
-                lines = region.get_TextLine()
-                if not lines:
-                    LOG.warning("Region '%s' contains no text lines", region.id)
-                for line in lines:
-                    line_image, line_coords = self.workspace.image_from_segment(
-                        line, region_image, region_coords)
-                        #feature_filter=self.parameter['feature_filter'],
-                        #transparency=self.parameter['transparency'])
-                    polygon = coordinates_of_segment(
-                        line, page_image, page_coords)
-                    
-                   
-                    polygon2 = polygon.reshape(1, -1).tolist()
-                    xywh = xywh_from_polygon(polygon.tolist())
-                    # if w or h < than 20px -> continue
-                    if xywh['w'] < 20 or xywh['h'] < 20:
-                        LOG.info("Line %s is smaller than 20px and will be skipped" % line.id)
-                        continue
-                    poly = Polygon(polygon.tolist())
-                    area = poly.area
-                    # COCO: add annotations
-                    i += 1
-                    # LOG.info([xywh['x'], xywh['y'], xywh['w'], xywh['h']])
-                    
-                    annotations.append(
-                        {'id': i, 'image_id': num_page_id,
-                        'category_id': categories[1]["id"],
-                        'segmentation': polygon2,
-                        'area': area,
-                        'bbox': [xywh['x'], xywh['y'], xywh['w'], xywh['h']],
-                        'score': score,
-                        'iscrowd': 0})
+                # lines = region.get_TextLine()
+                # if not lines:
+                #     LOG.warning("Region '%s' contains no text lines", region.id)
+                # for line in lines:
+                #     line_image, line_coords = self.workspace.image_from_segment(
+                #         line, region_image, region_coords)
+                #         #feature_filter=self.parameter['feature_filter'],
+                #         #transparency=self.parameter['transparency'])
+                polygon = coordinates_of_segment(
+                    region, page_image, page_coords)
+                
+                
+                polygon2 = polygon.reshape(1, -1).tolist()
+                xywh = xywh_from_polygon(polygon.tolist())
+                # if w or h < than 20px -> continue
+                if xywh['w'] < 20 or xywh['h'] < 20:
+                    LOG.info("Region %s is smaller than 20px and will be skipped" % region.id)
+                    continue
+                poly = Polygon(polygon.tolist())
+                area = poly.area
+                # COCO: add annotations
+                i += 1
+                # LOG.info([xywh['x'], xywh['y'], xywh['w'], xywh['h']])
+                
+                annotations.append(
+                    {'id': i, 'image_id': num_page_id,
+                    'category_id': categories[1]["id"],
+                    'segmentation': polygon2,
+                    'area': area,
+                    'bbox': [xywh['x'], xywh['y'], xywh['w'], xywh['h']],
+                    'score': score,
+                    'iscrowd': 0})
 
             file_id = make_file_id(input_file, image_file_grp)
             file_path = self.workspace.save_image_file(page_image,

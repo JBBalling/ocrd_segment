@@ -22,6 +22,7 @@ from .classify_formdata_dummy import ClassifyFormDataDummy
 from .postcorrect_formdata import PostCorrectFormData
 from .evaluate_address import EvaluateAddress
 from .extract_textline import ExtractTextline
+from .extract_region_COCO import ExtractRegionCOCO
 
 @click.command()
 @ocrd_cli_options
@@ -127,3 +128,8 @@ def ocrd_segment_evaluate_address(*args, **kwargs):
 @ocrd_cli_options
 def ocrd_segment_extract_textline(*args, **kwargs):
     return ocrd_cli_wrap_processor(ExtractTextline, *args, **kwargs)
+
+@click.command()
+@ocrd_cli_options
+def ocrd_segment_extract_region_COCO(*args, **kwargs):
+    return ocrd_cli_wrap_processor(ExtractRegionCOCO, *args, **kwargs)

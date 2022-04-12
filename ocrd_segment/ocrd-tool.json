@@ -775,6 +775,24 @@
           "description": "Create GT of textlines from textlines created with OCR-D-Ocropus"
         }
       }
+    },
+    "ocrd-segment-extract-region-COCO": {
+      "executable": "ocrd-segment-extract-region-COCO",
+      "categories": ["Image processing gor GT creation"],
+      "description": "Extract all Regions from preprocessed Document and export to COCO format",
+      "input_file_grp": [
+        "OCR-D-OCR-TESS-deu-SEG-ocropus-ADDR-LINE"
+      ],
+      "output_file_grp": [
+        "OCR-D-OCR-TESS-deu-SEG-ocropus-ADDR-LINE-COCO"
+      ],
+      "steps": ["ground truth creation"],
+      "parameters": {
+        "gt_path": {
+          "type": "string",
+          "description": "Create GT of textlines from textlines created with OCR-D-Ocropus"
+        }
+      }
     }
   }
 }
