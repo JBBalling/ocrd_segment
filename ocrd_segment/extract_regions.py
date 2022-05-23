@@ -232,7 +232,9 @@ class ExtractRegions(Processor):
                                  'segmentation': np.array(poly.exterior.coords, np.int)[:-1].reshape(1, -1).tolist(),
                                  'area': area,
                                  'bbox': [xywh['x'], xywh['y'], xywh['w'], xywh['h']],
-                                 'iscrowd': 0})
+                                 'iscrowd': 0,
+                                 'score': 1
+                                 })
                             
                                   
                     
